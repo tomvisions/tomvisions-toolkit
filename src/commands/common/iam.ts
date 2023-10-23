@@ -13,23 +13,25 @@ class IAM {
         this._client = new IAMClient(options);
     }
 
-    public async createIAMRole() {
-        await this.createPolicy();
-        await this.createRole();
+    /**
+     * Creating IAM role 
+     * @param prefix
+     * @param policyDocument 
+     */
+    public async createIAMRole(prefix, policyDocument) {
+        const policy = await this.createPolicy(prefix, policyDocument);
+        await this.createRole(prefix, policy);
+        
+    }
+
+    private async createRole(prefix, policy) {
         
         try {
-
-
-            const params = JSON.parse(`{ 
-                "ExportTaskIdentifier": "STRING_VALUE", // required
-                "SourceArn": "STRING_VALUE", // required
-                "S3BucketName": "${this._bucket}",
-                "IamRoleArn": "STRING_VALUE", // required
-                "KmsKeyId": "STRING_VALUE", // required
-                "S3Prefix": "STRING_VALUE",
-                "ExportOnly": [ 
-                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
-                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
+            const params = JSON.parse(`{
+                Path: "/*",
+                RoleName: "role-${prefix()}-${uuid.v4()}", // required
+                AssumeRolePolicyDocument: "${policy}", // required
+                Description: "temporary role created by tomvisions-toolkit",
                 }`);
 
             return await this._client.send(new CreateRoleCommand(params))
@@ -39,32 +41,10 @@ class IAM {
         }
     }
 
-    private async createRole() {
-        
+    private async createPolicy(prefix, policy) {
         try {
             const params = JSON.parse(`{ 
-                "ExportTaskIdentifier": "STRING_VALUE", // required
-                "SourceArn": "STRING_VALUE", // required
-                "S3BucketName": "${this._bucket}",
-                "IamRoleArn": "STRING_VALUE", // required
-                "KmsKeyId": "STRING_VALUE", // required
-                "S3Prefix": "STRING_VALUE",
-                "ExportOnly": [ 
-                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
-                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
-                }`);
-
-            return await this._client.send(new CreateRoleCommand(params))
-
-        } catch (error) {
-            return error.toString();
-        }
-    }
-
-    private async createPolicy(policy) {
-        try {
-            const params = JSON.parse(`{ 
-                PolicyName: "policy-${uuid.v4()}", // required
+                PolicyName: "policy-${prefix()}-${uuid.v4()}", // required
                 Path: "/",
                 PolicyDocument: "${policy}", // required
                 Description: "STRING_VALUE",
@@ -75,7 +55,7 @@ class IAM {
                   },
                 }`);
 
-            return await this._client.send(new CreateRoleCommand(params))
+            return await this._client.send(new CreatePolicyCommand(params))
 
         } catch (error) {
             return error.toString();

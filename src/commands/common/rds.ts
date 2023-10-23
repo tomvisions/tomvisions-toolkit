@@ -96,7 +96,7 @@ class RDS {
      */
     private async describeDBSnapshots(snapshot: DBSnapshot) {
         try {
-            
+
             const params = JSON.parse(`{ 
                     "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
                     "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
@@ -118,7 +118,7 @@ class RDS {
         this._bucket = options.bucket;
 
         const snapshot = await this.createDBSnapshotCommand(options.instance);
-      
+
         await this.checkStatusSnapshot(snapshot.DBSnapshot);
 
 
@@ -128,7 +128,7 @@ class RDS {
      * Checking the status of the snapshot being created
      * @param snapshot 
      */
-    public async checkStatusSnapshot(snapshot:DBSnapshot) {
+    public async checkStatusSnapshot(snapshot: DBSnapshot) {
         let complete = false;
 
         while (!complete) {
@@ -137,10 +137,10 @@ class RDS {
             await timer.sleep(15000);
 
             if (snapshotInstance.DBSnapshots[0].Status === "available") {
-                complete = true;     
+                complete = true;
                 this.exportSnapShot(snapshot);
             }
-            
+
             // const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
             //            delay(15000);
         }
@@ -150,8 +150,9 @@ class RDS {
      * Function which works on creating the proper iam and key permission to export exports the snapshot created and sends it to defined s3 bucket
      * @param snapshot 
      */
-    private async exportSnapShot(snapshot:DBSnapshot) {
-        iam.createIAMRole(this.getIamPolicyRDSToS3());
+    private async exportSnapShot(snapshot: DBSnapshot) {
+        iam.createIAMRole("export-rds", this.getIamPolicyRDSToS3());
+        await this.startExportTask(snapshot);
     }
 
 
@@ -173,14 +174,15 @@ class RDS {
         }`);
     }
 
-
+    /**
+     * Function which starts the export of ds snapshot to s3
+     * @param snapshot 
+     * @returns 
+     */
     private async startExportTask(snapshot) {
-
         try {
-
-
             const params = JSON.parse(`{ 
-                "ExportTaskIdentifier": "STRING_VALUE", // required
+                "ExportTaskIdentifier": "export-task-${uuid.v4()}", // required
                 "SourceArn": "STRING_VALUE", // required
                 "S3BucketName": "${this._bucket}",
                 "IamRoleArn": "STRING_VALUE", // required
@@ -196,8 +198,7 @@ class RDS {
         } catch (error) {
             return error.toString();
         }
-
-    } 
+    }
 
     /**
      * Function that reads the config file for the mysql database
