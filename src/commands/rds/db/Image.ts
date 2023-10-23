@@ -2,7 +2,6 @@
 
 const { DataTypes, Model } = require('.');
 
-
 export class ImagePhotoGallery extends Model {
     public static initalize(sequelize) {
         return this.init({

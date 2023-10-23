@@ -1,12 +1,5 @@
-//import {readdirSync} from "fs";
 import {Command} from 'commander';
-///import * as uuid from 'uuid';
-//import * as shell from 'shelljs';
 import {s3, rds} from "../common";
-//oimport {,readdirSync} from "fs";
-//import {sequelize} from "./db";
-
-
 interface Options {
     bucket: string,
     prefix: string,

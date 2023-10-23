@@ -5,7 +5,7 @@ export class S3Commands {
     public GetCommand(): Command {
         const program = new Command('s3');
         program
-            .description('Commands to copy file(s) to an s3 Bucket');
+            .description('Commands related to s3');
         program.addCommand(importS3.GetCommand());
 
         return program;

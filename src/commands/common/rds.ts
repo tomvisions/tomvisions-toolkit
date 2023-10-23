@@ -1,12 +1,10 @@
-import { RDSClient, CreateDBSnapshotCommand } from "@aws-sdk/client-rds";
+import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnapshot, StartExportTaskCommand } from "@aws-sdk/client-rds";
 import * as uuid from 'uuid';
 import moment from "moment";
 import { GalleryPhotoGallery, ImagePhotoGallery } from '../rds'
-//import { SequelizeApi } from "../rds/db/Sequelize";
-
-import { system } from "./";
-//import { Sequelize } from "sequelize";
+import { system, iam } from "./";
 import { SequelizeApi } from "../rds/db/Sequelize";
+import { timer } from "./timer";
 
 export interface GalleryProperties {
     id: string,
@@ -31,10 +29,16 @@ export interface dbConfigProperties {
     PASSWORD: string
 }
 
+export interface OptionExportRDS {
+    bucket: string,
+    instance: string,
+}
+
 class RDS {
     private _client: RDSClient;
     private _galleryName;
     private _sequelize;
+    private _bucket;
 
     constructor() {
         const options = {
@@ -51,33 +55,162 @@ class RDS {
      */
     private async initalizeSequelize(dbConfig: dbConfigProperties) {
 
-       let options = JSON.parse(`{"host": "${dbConfig.DB_HOST}", "dialect": "mysql", "port":3306}`);
-        let sequelizeClass = new SequelizeApi(dbConfig.DATABASE, dbConfig.USERNAME,dbConfig.PASSWORD, options);//.initialize();
+        let options = JSON.parse(`{"host": "${dbConfig.DB_HOST}", "dialect": "mysql", "port":3306}`);
+        let sequelizeClass = new SequelizeApi(dbConfig.DATABASE, dbConfig.USERNAME, dbConfig.PASSWORD, options);//.initialize();
         this._sequelize = sequelizeClass.initialize();
 
     }
 
     public async initalizeRDS(file) {
-       const dbConfig = await this.readCredentialsFromFile(file)
-       this.initalizeSequelize(dbConfig);
+        const dbConfig = await this.readCredentialsFromFile(file)
+        this.initalizeSequelize(dbConfig);
 
-       GalleryPhotoGallery.initalize(this._sequelize)
-       ImagePhotoGallery.initalize(this._sequelize)
+        GalleryPhotoGallery.initalize(this._sequelize)
+        ImagePhotoGallery.initalize(this._sequelize)
 
     }
+
+    /**
+     * Function which creates a DB Snapshot
+     * @param instance 
+     * @returns 
+     */
+    private async createDBSnapshotCommand(instance: string) {
+        try {
+            const params = JSON.parse(`{ 
+                    "DBSnapshotIdentifier": "export-${uuid.v4()}",
+                    "DBInstanceIdentifier": "${instance}" 
+                }`);
+
+            return await this._client.send(new CreateDBSnapshotCommand(params))
+
+        } catch (error) {
+            return error.toString();
+        }
+    }
+
+    /**
+     * Describe DB snapshots that exists
+     * @param snapshot 
+     * @returns 
+     */
+    private async describeDBSnapshots(snapshot: DBSnapshot) {
+        try {
+            
+            const params = JSON.parse(`{ 
+                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
+                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
+                }`);
+
+            return await this._client.send(new DescribeDBSnapshotsCommand(params))
+
+        } catch (error) {
+            return error.toString();
+        }
+
+    }
+
+    /**
+     * Main function to start the exporting of database snapto to s3
+     * @param options 
+     */
+    public async exportRDSToS3(options: OptionExportRDS) {
+        this._bucket = options.bucket;
+
+        const snapshot = await this.createDBSnapshotCommand(options.instance);
+      
+        await this.checkStatusSnapshot(snapshot.DBSnapshot);
+
+
+    }
+
+    /**
+     * Checking the status of the snapshot being created
+     * @param snapshot 
+     */
+    public async checkStatusSnapshot(snapshot:DBSnapshot) {
+        let complete = false;
+
+        while (!complete) {
+            const snapshotInstance = await this.describeDBSnapshots(snapshot);
+            console.log(snapshotInstance);
+            await timer.sleep(15000);
+
+            if (snapshotInstance.DBSnapshots[0].Status === "available") {
+                complete = true;     
+                this.exportSnapShot(snapshot);
+            }
+            
+            // const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+            //            delay(15000);
+        }
+    }
+
+    /**
+     * Function which works on creating the proper iam and key permission to export exports the snapshot created and sends it to defined s3 bucket
+     * @param snapshot 
+     */
+    private async exportSnapShot(snapshot:DBSnapshot) {
+        iam.createIAMRole(this.getIamPolicyRDSToS3());
+    }
+
+
+    private async getIamPolicyRDSToS3() {
+        return JSON.parse(`
+        {
+            Version: "2012-10-17",
+            Statement: [
+              {
+                Effect: "Allow",
+                Principal: {
+                  Service: "rds.amazonaws.com",
+                },
+                Action: "sts:AssumeRole",
+              },
+            ],
+          }),
+          RoleName: roleName,
+        }`);
+    }
+
+
+    private async startExportTask(snapshot) {
+
+        try {
+
+
+            const params = JSON.parse(`{ 
+                "ExportTaskIdentifier": "STRING_VALUE", // required
+                "SourceArn": "STRING_VALUE", // required
+                "S3BucketName": "${this._bucket}",
+                "IamRoleArn": "STRING_VALUE", // required
+                "KmsKeyId": "STRING_VALUE", // required
+                "S3Prefix": "STRING_VALUE",
+                "ExportOnly": [ 
+                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
+                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
+                }`);
+
+            return await this._client.send(new StartExportTaskCommand(params))
+
+        } catch (error) {
+            return error.toString();
+        }
+
+    } 
 
     /**
      * Function that reads the config file for the mysql database
      * @param file 
      * @returns dbConfigProperties
      */
-    private async readCredentialsFromFile(file = null) : Promise<dbConfigProperties> {
+    private async readCredentialsFromFile(file = null): Promise<dbConfigProperties> {
         try {
             if (!file) {
                 throw new Error('Missing configuration file')
             }
-            const data:string = await system.readFilefromPath(file);
-          
+            const data: string = await system.readFilefromPath(file);
+
             return JSON.parse(data);
 
         } catch (error) {
@@ -86,29 +219,7 @@ class RDS {
     }
 
 
-    /**
-     * Creates a snapshot of a RDS instance
-     * @param databaseName 
-     */
-    public async createDBSnapshotCommand(databaseName) {
-        try {
-            const params = { // CreateDBSnapshotMessage
-                DBSnapshotIdentifier: "STRING_VALUE", // required
-                DBInstanceIdentifier: "STRING_VALUE", // required
-                Tags: [ // TagList
-                    { // Tag
-                        Key: "STRING_VALUE",
-                        Value: "STRING_VALUE",
-                    },
-                ],
-            };
 
-            this._client.send(new CreateDBSnapshotCommand(params))
-
-        } catch (error) {
-            return error.toString();
-        }
-    }
 
 
     /**
@@ -124,7 +235,7 @@ class RDS {
             updatedAt: moment().format('YYYY-MM-DD'),
         };
 
-       GalleryPhotoGallery.findOrCreate({ where: { name: this._galleryName }, defaults: gallery });
+        GalleryPhotoGallery.findOrCreate({ where: { name: this._galleryName }, defaults: gallery });
     }
 
     /**
@@ -153,6 +264,8 @@ class RDS {
     public set galleryName(value) {
         this._galleryName = value;
     }
+
+
 }
 
 export const rds = new RDS();
