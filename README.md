@@ -13,4 +13,4 @@ In progress: creating a temporary IAM role, and policy to give permission to the
 
 Current functions for System Operations
 
-1) Reads a folder of image files and renames then with a UUID format
+1) Reads a folder of image files and renames them with a UUID format
