@@ -116,7 +116,7 @@ class RDS {
      */
     public async exportRDSToS3(options: OptionExportRDS) {
         this._bucket = options.bucket;
-
+        
         const snapshot = await this.createDBSnapshotCommand(options.instance);
 
         await this.checkStatusSnapshot(snapshot.DBSnapshot);
@@ -138,7 +138,7 @@ class RDS {
 
             if (snapshotInstance.DBSnapshots[0].Status === "available") {
                 complete = true;
-                this.exportSnapShot(snapshot);
+                await this.exportSnapShot(snapshot);
             }
 
             // const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -151,27 +151,27 @@ class RDS {
      * @param snapshot 
      */
     private async exportSnapShot(snapshot: DBSnapshot) {
-        iam.createIAMRole("export-rds", this.getIamPolicyRDSToS3());
+        await iam.createIAMRole("export-rds", this.getIamPolicyRDSToS3());
         await this.startExportTask(snapshot);
     }
 
 
     private async getIamPolicyRDSToS3() {
-        return JSON.parse(`
+        const policy =  `
         {
-            Version: "2012-10-17",
-            Statement: [
+            "Version": "2012-10-17",
+            "Statement": [
               {
-                Effect: "Allow",
-                Principal: {
-                  Service: "rds.amazonaws.com",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "rds.amazonaws.com",
                 },
-                Action: "sts:AssumeRole",
-              },
+                "Action": "sts:AssumeRole",
+              }
             ],
-          }),
-          RoleName: roleName,
-        }`);
+        }`;
+        console.log(policy);
+        return policy;
     }
 
     /**

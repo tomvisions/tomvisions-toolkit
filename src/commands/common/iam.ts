@@ -20,7 +20,9 @@ class IAM {
      */
     public async createIAMRole(prefix, policyDocument) {
         const policy = await this.createPolicy(prefix, policyDocument);
-        await this.createRole(prefix, policy);
+        const role = await this.createRole(prefix, policy);
+            console.log('roe')
+            console.log(role);
         
     }
 
@@ -29,7 +31,7 @@ class IAM {
         try {
             const params = JSON.parse(`{
                 Path: "/*",
-                RoleName: "role-${prefix()}-${uuid.v4()}", // required
+                RoleName: "role-${prefix}-${uuid.v4()}", // required
                 AssumeRolePolicyDocument: "${policy}", // required
                 Description: "temporary role created by tomvisions-toolkit",
                 }`);
@@ -44,7 +46,7 @@ class IAM {
     private async createPolicy(prefix, policy) {
         try {
             const params = JSON.parse(`{ 
-                PolicyName: "policy-${prefix()}-${uuid.v4()}", // required
+                PolicyName: "policy-${prefix}-${uuid.v4()}", // required
                 Path: "/",
                 PolicyDocument: "${policy}", // required
                 Description: "STRING_VALUE",
@@ -55,6 +57,8 @@ class IAM {
                   },
                 }`);
 
+                console.log('the role policy');
+            console.log(params);
             return await this._client.send(new CreatePolicyCommand(params))
 
         } catch (error) {
