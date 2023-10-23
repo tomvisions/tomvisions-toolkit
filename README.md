@@ -11,3 +11,6 @@ Current functionaity for RDS
 In progress: creating a temporary IAM role, and policy to give permission to the node app to copy over the snapshot into S3
 
 
+Current functions for System Operations
+
+1) Reads a folder of image files and renames then with a UUID format
