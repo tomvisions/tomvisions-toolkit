@@ -36,21 +36,3 @@ export class SequelizeApi {
       return new Sequelize(this._database, this._username, this._password, this._options);
     };
 }
-
-//console.log('hello')
-//console.log(process.env);
-//let options;
-/*if (process.env.LOCAL) {
-    options = {host: '127.0.0.1', dialect: 'mysql', port:3306}
-} else if ( process.env.NODE_ENV === 'staging') {
-    options = {host: process.env.HOST_STAGE, dialect: 'mysql', port:33306}
-} else {
-    options = {host: process.env.HOST_PRODUCTION, dialect: 'mysql', port:33306}
-}
-
-let sequelizeClass = new SequelizeApi(process.env.DATABASE, process.env.USERNAME,process.env.PASSWORD, options );//.initialize();
-let sequelize = sequelizeClass.initialize();
-
-export {sequelize};
-*/
-//export const sequelize = null;
