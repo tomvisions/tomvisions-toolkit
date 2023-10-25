@@ -1,5 +1,5 @@
-import { IAMClient, CreateRoleCommand, CreatePolicyCommand } from "@aws-sdk/client-iam";
-import * as uuid from 'uuid';
+import { IAMClient, CreateRoleCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role } from "@aws-sdk/client-iam";
+import { timer } from "./timer";
 
 class IAM {
     private _client;
@@ -15,56 +15,86 @@ class IAM {
 
     /**
      * Creating IAM role 
-     * @param prefix
+     * @param roleName
+     * @param policyName
      * @param policyDocument 
      */
-    public async createIAMRole(prefix, policyDocument) {
-        const policy = await this.createPolicy(prefix, policyDocument);
-        const role = await this.createRole(prefix, policy);
-            console.log('roe')
-            console.log(role);
+    public async createIAMRole(roleName, policyName, policyDocument, policyAssume) {
+        const policy: Policy = await this.createPolicy(policyName, policyDocument);
+        const roleInstance: Role = await this.createRole(roleName, policyAssume);
+        await this.attachRolePolicy(roleName, policy.Arn);  
+    
         
+        await timer.sleep(10000);  
+
+        return roleInstance;
+    
     }
 
-    private async createRole(prefix, policy) {
+    /**
+     * Function that creates a role with a policy Assume Document
+     * @param roleName 
+     * @param policyAssume 
+     * @returns Promise<Role>
+     */
+    private async createRole(roleName, policyAssume) : Promise<Role> {
         
         try {
-            const params = JSON.parse(`{
-                Path: "/*",
-                RoleName: "role-${prefix}-${uuid.v4()}", // required
-                AssumeRolePolicyDocument: "${policy}", // required
-                Description: "temporary role created by tomvisions-toolkit",
-                }`);
+            const params = {
+                RoleName: roleName,
+                AssumeRolePolicyDocument: policyAssume
+            };
 
-            return await this._client.send(new CreateRoleCommand(params))
+            return (await this._client.send(new CreateRoleCommand(params))).Role
 
         } catch (error) {
-            return error.toString();
+            throw new Error(`Create Role has error: ${error.toString()}`);
         }
     }
 
-    private async createPolicy(prefix, policy) {
+    /**
+     * Creates a policy based on Policy Name and Policy Document
+     * @param policyName 
+     * @param policyDocument 
+     * @returns Policy
+     */
+    private async createPolicy(policyName, policyDocument) : Promise <Policy> {
         try {
-            const params = JSON.parse(`{ 
-                PolicyName: "policy-${prefix}-${uuid.v4()}", // required
-                Path: "/",
-                PolicyDocument: "${policy}", // required
-                Description: "STRING_VALUE",
-                Tags: [ // tagListType
-                  { // Tag
-                    Key: "STRING_VALUE", // required
-                    Value: "STRING_VALUE", // required
-                  },
-                }`);
-
-                console.log('the role policy');
-            console.log(params);
-            return await this._client.send(new CreatePolicyCommand(params))
-
+      
+            const params = { 
+                "PolicyName" : policyName, 
+                "PolicyDocument": policyDocument
+                }
+        
+            return (await this._client.send(new CreatePolicyCommand(params))).Policy
+    
         } catch (error) {
-            return error.toString();
+            throw new Error(error.toString());
         }
 
+    }
+
+    /**
+     * Functions which attaches Policy to Role
+     * @param roleName 
+     * @param policyArn 
+     * @returns 
+     */
+    private async attachRolePolicy(roleName:string, policyArn) : Promise<any>{
+        try {
+      
+            const params = { 
+                "RoleName" : roleName, 
+                "PolicyArn": policyArn
+                }
+         
+             const test = await this._client.send(new AttachRolePolicyCommand(params));   
+//            return await this._client.send(new AttachRolePolicyCommand(params))
+                console.log(test);
+                return test;
+        } catch (error) {
+            throw new Error(error.toString());
+        }
     }
 }
 

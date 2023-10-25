@@ -2,9 +2,11 @@ import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnaps
 import * as uuid from 'uuid';
 import moment from "moment";
 import { GalleryPhotoGallery, ImagePhotoGallery } from '../rds'
-import { system, iam } from "./";
+import { system, iam, kms, sts } from "./";
 import { SequelizeApi } from "../rds/db/Sequelize";
 import { timer } from "./timer";
+//import { KeyMetadata } from "@aws-sdk/client-kms";
+import { Role } from "@aws-sdk/client-iam";
 
 export interface GalleryProperties {
     id: string,
@@ -73,16 +75,16 @@ class RDS {
     /**
      * Function which creates a DB Snapshot
      * @param instance 
-     * @returns 
+     * @returns Promise<DBSnapshot>
      */
-    private async createDBSnapshotCommand(instance: string) {
+    private async createDBSnapshotCommand(instance: string): Promise<DBSnapshot> {
         try {
-            const params = JSON.parse(`{ 
-                    "DBSnapshotIdentifier": "export-${uuid.v4()}",
-                    "DBInstanceIdentifier": "${instance}" 
-                }`);
+            const params = {
+                "DBSnapshotIdentifier": `export-${uuid.v4()}`,
+                "DBInstanceIdentifier": `${instance}`
+            };
 
-            return await this._client.send(new CreateDBSnapshotCommand(params))
+            return (await this._client.send(new CreateDBSnapshotCommand(params))).DBSnapshot
 
         } catch (error) {
             return error.toString();
@@ -97,10 +99,10 @@ class RDS {
     private async describeDBSnapshots(snapshot: DBSnapshot) {
         try {
 
-            const params = JSON.parse(`{ 
-                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
-                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
-                }`);
+            const params = {
+                "DBSnapshotIdentifier": `${snapshot.DBSnapshotIdentifier}`,
+                "DBInstanceIdentifier": `${snapshot.DBInstanceIdentifier}`
+            };
 
             return await this._client.send(new DescribeDBSnapshotsCommand(params))
 
@@ -116,10 +118,10 @@ class RDS {
      */
     public async exportRDSToS3(options: OptionExportRDS) {
         this._bucket = options.bucket;
-        
-        const snapshot = await this.createDBSnapshotCommand(options.instance);
 
-        await this.checkStatusSnapshot(snapshot.DBSnapshot);
+        const snapshot: DBSnapshot = await this.createDBSnapshotCommand(options.instance);
+
+        await this.checkStatusSnapshot(snapshot);
 
 
     }
@@ -133,16 +135,13 @@ class RDS {
 
         while (!complete) {
             const snapshotInstance = await this.describeDBSnapshots(snapshot);
-            console.log(snapshotInstance);
+
             await timer.sleep(15000);
 
             if (snapshotInstance.DBSnapshots[0].Status === "available") {
                 complete = true;
                 await this.exportSnapShot(snapshot);
             }
-
-            // const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-            //            delay(15000);
         }
     }
 
@@ -151,27 +150,43 @@ class RDS {
      * @param snapshot 
      */
     private async exportSnapShot(snapshot: DBSnapshot) {
-        await iam.createIAMRole("export-rds", this.getIamPolicyRDSToS3());
-        await this.startExportTask(snapshot);
+        const roleName = `role-rds-export-${uuid.v4()}`;
+        const policyName = `policy-rds-export-${uuid.v4()}`;
+        const roleInstance: Role = await iam.createIAMRole(roleName, policyName, this.getIamPolicyRDSToS3(), this.getIamAssumePolicyRDSToS3());
+        const key = await kms.setupKey(roleInstance, (await sts.getCallerIdentity()).Account);
+        await this.startExportTask(snapshot, key, roleInstance);
     }
 
 
-    private async getIamPolicyRDSToS3() {
-        const policy =  `
-        {
+    private getIamPolicyRDSToS3() {
+        return `{
             "Version": "2012-10-17",
             "Statement": [
-              {
+                {
+                    "Sid": "VisualEditor0",
+                    "Effect": "Allow",
+                    "Action": "s3:*",
+                    "Resource": [
+                        "arn:aws:s3:::${this._bucket}",
+                        "arn:aws:s3:::${this._bucket}/*"
+                    ]
+                }
+            ]
+        }`
+    }
+
+
+    private getIamAssumePolicyRDSToS3() {
+        return `{
+            "Version": "2012-10-17",
+            "Statement": [{
                 "Effect": "Allow",
                 "Principal": {
-                  "Service": "rds.amazonaws.com",
+                    "Service": "export.rds.amazonaws.com"
                 },
-                "Action": "sts:AssumeRole",
-              }
-            ],
+                "Action": "sts:AssumeRole"
+            }]
         }`;
-        console.log(policy);
-        return policy;
     }
 
     /**
@@ -179,21 +194,20 @@ class RDS {
      * @param snapshot 
      * @returns 
      */
-    private async startExportTask(snapshot) {
+    private async startExportTask(snapshot: DBSnapshot, key, roleInstance: Role) {
         try {
-            const params = JSON.parse(`{ 
-                "ExportTaskIdentifier": "export-task-${uuid.v4()}", // required
-                "SourceArn": "STRING_VALUE", // required
-                "S3BucketName": "${this._bucket}",
-                "IamRoleArn": "STRING_VALUE", // required
-                "KmsKeyId": "STRING_VALUE", // required
-                "S3Prefix": "STRING_VALUE",
-                "ExportOnly": [ 
-                    "DBSnapshotIdentifier": "${snapshot.DBSnapshotIdentifier}",
-                    "DBInstanceIdentifier": "${snapshot.DBInstanceIdentifier}"
-                }`);
+            const params = {
+                ExportTaskIdentifier: `export-task-${uuid.v4()}`,
+                S3BucketName: `${this._bucket}`,
+                IamRoleArn: `${roleInstance.Arn}`,
+                KmsKeyId: `${key.KeyId}`,
+                SourceArn: snapshot.DBSnapshotArn
+            }
 
-            return await this._client.send(new StartExportTaskCommand(params))
+            const testing = await this._client.send(new StartExportTaskCommand(params))
+            console.log('the export is starting');
+            console.log(testing);
+            //            return await this._client.send(new StartExportTaskCommand(params))
 
         } catch (error) {
             return error.toString();
