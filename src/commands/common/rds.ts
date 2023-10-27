@@ -1,12 +1,13 @@
-import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnapshot, StartExportTaskCommand } from "@aws-sdk/client-rds";
+import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnapshot, StartExportTaskCommand, StartExportTaskCommandOutput, DescribeExportTasksCommand } from "@aws-sdk/client-rds";
 import * as uuid from 'uuid';
 import moment from "moment";
 import { GalleryPhotoGallery, ImagePhotoGallery } from '../rds'
-import { system, iam, kms, sts } from "./";
+import { system, iam, kms, sts, logger } from "./";
 import { SequelizeApi } from "../rds/db/Sequelize";
 import { timer } from "./timer";
 //import { KeyMetadata } from "@aws-sdk/client-kms";
 import { Role } from "@aws-sdk/client-iam";
+
 
 export interface GalleryProperties {
     id: string,
@@ -75,7 +76,7 @@ class RDS {
     /**
      * Function which creates a DB Snapshot
      * @param instance 
-     * @returns Promise<DBSnapshot>
+     * @returns Promise<DBSnapshot> | null
      */
     private async createDBSnapshotCommand(instance: string): Promise<DBSnapshot> {
         try {
@@ -83,11 +84,12 @@ class RDS {
                 "DBSnapshotIdentifier": `export-${uuid.v4()}`,
                 "DBInstanceIdentifier": `${instance}`
             };
-
+            
             return (await this._client.send(new CreateDBSnapshotCommand(params))).DBSnapshot
 
         } catch (error) {
-            return error.toString();
+            logger.logMessage(error.toString(), error, 'ERROR')   
+            return error.toString;
         }
     }
 
@@ -107,6 +109,7 @@ class RDS {
             return await this._client.send(new DescribeDBSnapshotsCommand(params))
 
         } catch (error) {
+            logger.logMessage('Unable to describe snapshot', error, 'ERROR');    
             return error.toString();
         }
 
@@ -119,8 +122,10 @@ class RDS {
     public async exportRDSToS3(options: OptionExportRDS) {
         this._bucket = options.bucket;
 
-        const snapshot: DBSnapshot = await this.createDBSnapshotCommand(options.instance);
+        await logger.logMessage('Starting export process', null, 'INFO', 'Snapshot creation');  
 
+        const snapshot: DBSnapshot = await this.createDBSnapshotCommand(options.instance);
+        
         await this.checkStatusSnapshot(snapshot);
 
 
@@ -133,15 +138,20 @@ class RDS {
     public async checkStatusSnapshot(snapshot: DBSnapshot) {
         let complete = false;
 
+        await logger.logMessage('Creating Snapshot', null, 'INFO'); 
+
         while (!complete) {
             const snapshotInstance = await this.describeDBSnapshots(snapshot);
+           
 
-            await timer.sleep(15000);
-
-            if (snapshotInstance.DBSnapshots[0].Status === "available") {
+            if (snapshotInstance.DBSnapshots && snapshotInstance.DBSnapshots[0].Status === "available") {
                 complete = true;
+                await logger.logMessage('Snapshot created', null, 'INFO'); 
+
                 await this.exportSnapShot(snapshot);
             }
+
+            await timer.sleep(10000);
         }
     }
 
@@ -150,11 +160,25 @@ class RDS {
      * @param snapshot 
      */
     private async exportSnapShot(snapshot: DBSnapshot) {
+        await logger.logMessage('Starting export process', null, 'INFO'); 
+
         const roleName = `role-rds-export-${uuid.v4()}`;
         const policyName = `policy-rds-export-${uuid.v4()}`;
         const roleInstance: Role = await iam.createIAMRole(roleName, policyName, this.getIamPolicyRDSToS3(), this.getIamAssumePolicyRDSToS3());
         const key = await kms.setupKey(roleInstance, (await sts.getCallerIdentity()).Account);
-        await this.startExportTask(snapshot, key, roleInstance);
+        const exportSnapshot = await this.startExportTask(snapshot, key, roleInstance);
+        let exportingInProcess = true;
+   
+        while (exportingInProcess) {
+            const exportedTask = await this.describeExportTask(exportSnapshot)
+            if (exportedTask.ExportTasks && exportedTask.ExportTasks[0].Status === "COMPLETE") {
+                exportingInProcess = false;
+                logger.logMessage('Export has been completed', null, 'INFO');   
+                console.log('goodbye');      
+            }
+
+            await timer.sleep(10000);
+        }
     }
 
 
@@ -194,7 +218,7 @@ class RDS {
      * @param snapshot 
      * @returns 
      */
-    private async startExportTask(snapshot: DBSnapshot, key, roleInstance: Role) {
+    private async startExportTask(snapshot: DBSnapshot, key, roleInstance: Role): Promise<StartExportTaskCommandOutput> {
         try {
             const params = {
                 ExportTaskIdentifier: `export-task-${uuid.v4()}`,
@@ -204,11 +228,25 @@ class RDS {
                 SourceArn: snapshot.DBSnapshotArn
             }
 
-            const testing = await this._client.send(new StartExportTaskCommand(params))
-            console.log('the export is starting');
-            console.log(testing);
-            //            return await this._client.send(new StartExportTaskCommand(params))
+            return await this._client.send(new StartExportTaskCommand(params))
+        } catch (error) {
+            logger.logMessage('Error exporting RDS snapshot', 'ERROR', error)
+            process.exit(0)
+        }
+    }
 
+    /**
+     * Function which exports the task
+     * @param exportSnapshot 
+     * @returns 
+     */
+    private async describeExportTask(exportSnapshot: StartExportTaskCommandOutput) {
+        try {
+            const params = {
+                ExportTaskIdentifier: exportSnapshot.ExportTaskIdentifier
+            }
+
+            return await this._client.send(new DescribeExportTasksCommand(params));
         } catch (error) {
             return error.toString();
         }

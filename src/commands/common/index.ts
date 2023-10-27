@@ -1,3 +1,4 @@
+export * from './logger';
 export * from './timer';
 export * from  './sts';
 export * from  './iam';

@@ -1,5 +1,5 @@
 import { IAMClient, CreateRoleCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role } from "@aws-sdk/client-iam";
-import { timer } from "./timer";
+import { timer, logger } from "./";
 
 class IAM {
     private _client;
@@ -20,11 +20,11 @@ class IAM {
      * @param policyDocument 
      */
     public async createIAMRole(roleName, policyName, policyDocument, policyAssume) {
+        await logger.logMessage('Creating IAM role process', null, 'INFO', 'IAM Role Creation'); 
+
         const policy: Policy = await this.createPolicy(policyName, policyDocument);
         const roleInstance: Role = await this.createRole(roleName, policyAssume);
         await this.attachRolePolicy(roleName, policy.Arn);  
-    
-        
         await timer.sleep(10000);  
 
         return roleInstance;
@@ -45,6 +45,7 @@ class IAM {
                 AssumeRolePolicyDocument: policyAssume
             };
 
+            logger.logMessage('Creating Role:', {roleName:roleName}, 'INFO'); 
             return (await this._client.send(new CreateRoleCommand(params))).Role
 
         } catch (error) {
@@ -60,12 +61,13 @@ class IAM {
      */
     private async createPolicy(policyName, policyDocument) : Promise <Policy> {
         try {
-      
             const params = { 
                 "PolicyName" : policyName, 
                 "PolicyDocument": policyDocument
                 }
-        
+            
+                logger.logMessage('Creating Policy for Role', {policyName:policyName}, 'INFO'); 
+
             return (await this._client.send(new CreatePolicyCommand(params))).Policy
     
         } catch (error) {
@@ -88,11 +90,11 @@ class IAM {
                 "PolicyArn": policyArn
                 }
          
-             const test = await this._client.send(new AttachRolePolicyCommand(params));   
+              return await this._client.send(new AttachRolePolicyCommand(params));   
 //            return await this._client.send(new AttachRolePolicyCommand(params))
-                console.log(test);
-                return test;
+            
         } catch (error) {
+            logger.logMessage(error.toString, error, 'ERROR');
             throw new Error(error.toString());
         }
     }
