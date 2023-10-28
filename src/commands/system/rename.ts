@@ -2,7 +2,7 @@ import {readdirSync} from "fs";
 import {Command} from 'commander';
 import * as uuid from 'uuid';
 import * as shell from 'shelljs';
-
+import {system} from "../common";
 
 interface Options {
     directory: string,
@@ -11,18 +11,11 @@ interface Options {
 
 export class Rename {
     private async Run(options: Options) {
-        const readDirectory = (location) => {
-            try {
-                return readdirSync(location);
-            } catch (error) {
-                return error.toString();
-            }
-        }
-
+        
         const acceptableExtensions = ['.jpeg', '.jpg', '.PNG', '.png']
 
         try {
-            const files = await readDirectory(options.directory);
+            const files = await system.readDirectory(options.directory);
             switch (options.type) {
                 case "uuid":
 

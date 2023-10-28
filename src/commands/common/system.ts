@@ -1,9 +1,10 @@
 const fs = require('fs/promises');
+import {readdirSync} from "fs";
 
 class System {
 
     /**
-     * 
+     * Function which reads a file from a given apth
      * @param file 
      * @returns 
      */
@@ -22,6 +23,17 @@ class System {
         }
     }
 
+    /**
+     * Function which reads a directory
+     * @param location 
+     */
+    public async readDirectory(location) {
+        try {
+            return readdirSync(location);
+        } catch (error) {
+            return error.toString();
+        }
+    }
 }
 
 export const system = new System();
