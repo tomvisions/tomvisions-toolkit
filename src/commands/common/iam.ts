@@ -1,4 +1,4 @@
-import { IAMClient, CreateRoleCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role } from "@aws-sdk/client-iam";
+import { IAMClient, CreateRoleCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role, ListAttachedRolePoliciesCommand, DetachRolePolicyCommand } from "@aws-sdk/client-iam";
 import { timer, logger } from "./";
 
 class IAM {
@@ -20,15 +20,18 @@ class IAM {
      * @param policyDocument 
      */
     public async createIAMRole(roleName, policyName, policyDocument, policyAssume) {
-        await logger.logMessage('Creating IAM role process', null, 'INFO', 'IAM Role Creation'); 
+        await logger.logMessage('Creating IAM role process', null, 'INFO', 'IAM Role Creation');
 
         const policy: Policy = await this.createPolicy(policyName, policyDocument);
         const roleInstance: Role = await this.createRole(roleName, policyAssume);
-        await this.attachRolePolicy(roleName, policy.Arn);  
-        await timer.sleep(10000);  
+        await this.attachRolePolicy(roleName, policy.Arn);
+
+        logger.logMessage('IAM Role Created', null, 'INFO');   
+        
+        await timer.sleep(10000);
 
         return roleInstance;
-    
+
     }
 
     /**
@@ -37,15 +40,15 @@ class IAM {
      * @param policyAssume 
      * @returns Promise<Role>
      */
-    private async createRole(roleName, policyAssume) : Promise<Role> {
-        
+    private async createRole(roleName, policyAssume): Promise<Role> {
+
         try {
             const params = {
                 RoleName: roleName,
                 AssumeRolePolicyDocument: policyAssume
             };
 
-            logger.logMessage('Creating Role:', {roleName:roleName}, 'INFO'); 
+            logger.logMessage('Creating Role:', { roleName: roleName }, 'INFO');
             return (await this._client.send(new CreateRoleCommand(params))).Role
 
         } catch (error) {
@@ -59,17 +62,17 @@ class IAM {
      * @param policyDocument 
      * @returns Policy
      */
-    private async createPolicy(policyName, policyDocument) : Promise <Policy> {
+    private async createPolicy(policyName, policyDocument): Promise<Policy> {
         try {
-            const params = { 
-                "PolicyName" : policyName, 
+            const params = {
+                "PolicyName": policyName,
                 "PolicyDocument": policyDocument
-                }
-            
-                logger.logMessage('Creating Policy for Role', {policyName:policyName}, 'INFO'); 
+            }
+
+            logger.logMessage('Creating Policy for Role', { policyName: policyName }, 'INFO');
 
             return (await this._client.send(new CreatePolicyCommand(params))).Policy
-    
+
         } catch (error) {
             throw new Error(error.toString());
         }
@@ -82,22 +85,83 @@ class IAM {
      * @param policyArn 
      * @returns 
      */
-    private async attachRolePolicy(roleName:string, policyArn) : Promise<any>{
+    private async attachRolePolicy(roleName: string, policyArn): Promise<any> {
         try {
-      
-            const params = { 
-                "RoleName" : roleName, 
+
+            const params = {
+                "RoleName": roleName,
                 "PolicyArn": policyArn
-                }
-         
-              return await this._client.send(new AttachRolePolicyCommand(params));   
-//            return await this._client.send(new AttachRolePolicyCommand(params))
+            }
+
+            logger.logMessage('Attaching policy to role', null, 'INFO');
             
+            return await this._client.send(new AttachRolePolicyCommand(params));
+
+        } catch (error) {
+            logger.logMessage(error.toString, error, 'ERROR');
+            throw new Error(error.toString());
+        }
+    }
+
+    /**
+     * Clean up function for roleArn with Policy Attached
+     * @param iamRoleArn 
+     */
+    public async cleanUpRole(iamRoleArn:string) {
+        logger.logMessage('About to start cleaning IAM role for ARN', {roleArn:iamRoleArn});
+        const rolePolicies = await this.listAttachedRolePolicies(iamRoleArn);
+        console.log(rolePolicies);
+     }
+
+    /**
+     * List attached Policies from Role
+     * @param roleNameArn
+     * @returns 
+     */
+    private async listAttachedRolePolicies(roleNameArn) {
+        try {
+            console.log('role name');
+            console.log(roleNameArn );
+
+            const params = {
+                "RoleName": roleNameArn,
+            }
+
+            logger.logMessage('Listing Attached Policies to Role', {
+                "RoleName": roleNameArn,
+            }, 'INFO');
+
+
+            
+            return await this._client.send(new ListAttachedRolePoliciesCommand(params));
+
+        } catch (error) {
+            logger.logMessage(error.toString, error, 'ERROR');
+            throw new Error(error.toString());
+        }
+    }
+
+    async detachPolicyFromRole(roleName, policyArn) {
+
+        try {
+            const params = {
+                 RoleName: roleName, 
+                    PolicyArn: policyArn   
+            }          
+
+            logger.logMessage('Detaching Policy from Role', {
+                "RoleName": roleName,
+                "PolicyAr": policyArn
+            }, 'INFO');
+
+
+            
+            return await this._client.send(new DetachRolePolicyCommand(params));
+
         } catch (error) {
             logger.logMessage(error.toString, error, 'ERROR');
             throw new Error(error.toString());
         }
     }
 }
-
 export const iam = new IAM();

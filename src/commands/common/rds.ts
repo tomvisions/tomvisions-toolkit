@@ -1,4 +1,4 @@
-import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnapshot, StartExportTaskCommand, StartExportTaskCommandOutput, DescribeExportTasksCommand } from "@aws-sdk/client-rds";
+import { RDSClient, CreateDBSnapshotCommand, DescribeDBSnapshotsCommand, DBSnapshot, StartExportTaskCommand, StartExportTaskCommandOutput, DescribeExportTasksCommand, DeleteDBSnapshotCommand } from "@aws-sdk/client-rds";
 import * as uuid from 'uuid';
 import moment from "moment";
 import { GalleryPhotoGallery, ImagePhotoGallery } from '../rds'
@@ -7,6 +7,7 @@ import { SequelizeApi } from "../rds/db/Sequelize";
 import { timer } from "./timer";
 //import { KeyMetadata } from "@aws-sdk/client-kms";
 import { Role } from "@aws-sdk/client-iam";
+import { KeyMetadata } from "@aws-sdk/client-kms";
 
 
 export interface GalleryProperties {
@@ -84,11 +85,11 @@ class RDS {
                 "DBSnapshotIdentifier": `export-${uuid.v4()}`,
                 "DBInstanceIdentifier": `${instance}`
             };
-            
+
             return (await this._client.send(new CreateDBSnapshotCommand(params))).DBSnapshot
 
         } catch (error) {
-            logger.logMessage(error.toString(), error, 'ERROR')   
+            logger.logMessage(error.toString(), error, 'ERROR')
             return error.toString;
         }
     }
@@ -98,18 +99,12 @@ class RDS {
      * @param snapshot 
      * @returns 
      */
-    private async describeDBSnapshots(snapshot: DBSnapshot) {
+    private async describeDBSnapshots(params) {
         try {
-
-            const params = {
-                "DBSnapshotIdentifier": `${snapshot.DBSnapshotIdentifier}`,
-                "DBInstanceIdentifier": `${snapshot.DBInstanceIdentifier}`
-            };
-
             return await this._client.send(new DescribeDBSnapshotsCommand(params))
 
         } catch (error) {
-            logger.logMessage('Unable to describe snapshot', error, 'ERROR');    
+            logger.logMessage('Unable to describe snapshot', error, 'ERROR');
             return error.toString();
         }
 
@@ -122,10 +117,10 @@ class RDS {
     public async exportRDSToS3(options: OptionExportRDS) {
         this._bucket = options.bucket;
 
-        await logger.logMessage('Starting export process', null, 'INFO', 'Snapshot creation');  
+        logger.logMessage('Starting export process', null, 'INFO', 'Snapshot creation');
 
         const snapshot: DBSnapshot = await this.createDBSnapshotCommand(options.instance);
-        
+
         await this.checkStatusSnapshot(snapshot);
 
 
@@ -138,15 +133,20 @@ class RDS {
     public async checkStatusSnapshot(snapshot: DBSnapshot) {
         let complete = false;
 
-        await logger.logMessage('Creating Snapshot', null, 'INFO'); 
+        logger.logMessage('Creating Snapshot', null, 'INFO');
 
         while (!complete) {
-            const snapshotInstance = await this.describeDBSnapshots(snapshot);
-           
+
+            const params = {
+                "DBSnapshotIdentifier": `${snapshot.DBSnapshotIdentifier}`,
+                "DBInstanceIdentifier": `${snapshot.DBInstanceIdentifier}`
+            };
+            const snapshotInstance = await this.describeDBSnapshots(params);
+
 
             if (snapshotInstance.DBSnapshots && snapshotInstance.DBSnapshots[0].Status === "available") {
                 complete = true;
-                await logger.logMessage('Snapshot created', null, 'INFO'); 
+                logger.logMessage('Snapspot has been created', null, 'INFO')
 
                 await this.exportSnapShot(snapshot);
             }
@@ -160,25 +160,28 @@ class RDS {
      * @param snapshot 
      */
     private async exportSnapShot(snapshot: DBSnapshot) {
-        await logger.logMessage('Starting export process', null, 'INFO'); 
+        logger.logMessage('Starting export process', null, 'INFO', 'Export process')
 
         const roleName = `role-rds-export-${uuid.v4()}`;
         const policyName = `policy-rds-export-${uuid.v4()}`;
         const roleInstance: Role = await iam.createIAMRole(roleName, policyName, this.getIamPolicyRDSToS3(), this.getIamAssumePolicyRDSToS3());
-        const key = await kms.setupKey(roleInstance, (await sts.getCallerIdentity()).Account);
+        const key: KeyMetadata = await kms.setupKey(roleInstance, (await sts.getCallerIdentity()).Account);
         const exportSnapshot = await this.startExportTask(snapshot, key, roleInstance);
         let exportingInProcess = true;
-   
+
         while (exportingInProcess) {
             const exportedTask = await this.describeExportTask(exportSnapshot)
+
             if (exportedTask.ExportTasks && exportedTask.ExportTasks[0].Status === "COMPLETE") {
                 exportingInProcess = false;
-                logger.logMessage('Export has been completed', null, 'INFO');   
-                console.log('goodbye');      
+                logger.logMessage('Export has been completed', { exportedSnapshotId: exportedTask.ExportTasks[0].ExportTaskIdentifier }, 'INFO');
             }
 
             await timer.sleep(10000);
         }
+
+        await iam.cleanUpRole(roleInstance.Arn);
+        await kms.cleanUpKey(key.KeyId);
     }
 
 
@@ -220,6 +223,8 @@ class RDS {
      */
     private async startExportTask(snapshot: DBSnapshot, key, roleInstance: Role): Promise<StartExportTaskCommandOutput> {
         try {
+            logger.logMessage('Starting export of snapshot to S3', null, 'INFO', 'Export Task');
+
             const params = {
                 ExportTaskIdentifier: `export-task-${uuid.v4()}`,
                 S3BucketName: `${this._bucket}`,
@@ -251,6 +256,54 @@ class RDS {
             return error.toString();
         }
     }
+
+
+    /**
+     * 
+     * @returns 
+     */
+    private async deleteDBSnapShot(dbSnmpshotIdentifier) {
+        try {
+            const params = {
+                DBSnapshotIdentifier: dbSnmpshotIdentifier
+            }
+
+            return await this._client.send(new DeleteDBSnapshotCommand(params));
+        } catch (error) {
+            return error.toString();
+        }
+        DeleteDBSnapshotCommand
+
+    }
+
+    /**
+     * Function that deletes snapshots based on prefix
+     * @param options 
+     */
+    public async deleteSnapshotByPrefix(options) {
+        const prefix = options.prefix;
+        this.describeDBSnapshots({filter:prefix});
+    }
+
+    /**
+     * Function to clean up the Snapshot created 
+     * @param snapShotSourceArn 
+     */
+    async cleanupSnapshot(snapShotSourceArn) {
+        console.log('the snapshot');
+        console.log(snapShotSourceArn);
+
+        const params = {
+            DBSnapshotIdentifier: snapShotSourceArn
+        }
+
+        const snapshotObject = await this.describeDBSnapshots(params);
+        console.log('the object');
+        console.group(snapshotObject);
+        await this.deleteDBSnapShot(snapshotObject['DBSnapshotIdentifier']);
+
+
+    } 
 
     /**
      * Function that reads the config file for the mysql database
