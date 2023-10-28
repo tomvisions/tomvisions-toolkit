@@ -2,6 +2,7 @@ import {readdirSync} from "fs";
 import {Command} from 'commander';
 const axios = require('axios');
 import imageToUri from 'image-to-uri';
+import {system} from "../common";
 
 interface Options {
     directory: string,
@@ -10,13 +11,6 @@ interface Options {
 
 export class Upload {
     private async Run(options: Options) {
-        const readDirectory = (location) => {
-            try {
-                return readdirSync(location);
-            } catch (error) {
-                return error.toString();
-            }
-        }
 
         const acceptableExtensions = ['.jpeg', '.jpg', '.JPG', '.PNG', '.png']
         try {

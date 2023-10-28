@@ -11,7 +11,7 @@ interface Options {
 
 export class Rename {
     private async Run(options: Options) {
-        
+
         const acceptableExtensions = ['.jpeg', '.jpg', '.PNG', '.png']
 
         try {
@@ -52,5 +52,4 @@ export class Rename {
     }
 }
 
-const rename = new Rename();
-export {rename}
+export const rename = new Rename();
