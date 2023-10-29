@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/tomvisions/tomvisions-toolkit#readme",
   "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.438.0",
     "@aws-sdk/client-iam": "^3.433.0",
     "@aws-sdk/client-kms": "^3.433.0",
     "@aws-sdk/client-rds": "^3.433.0",
