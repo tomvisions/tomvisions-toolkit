@@ -1,4 +1,3 @@
-import {readdirSync} from "fs";
 import {Command} from 'commander';
 const axios = require('axios');
 import imageToUri from 'image-to-uri';
@@ -15,7 +14,7 @@ export class Upload {
         const acceptableExtensions = ['.jpeg', '.jpg', '.JPG', '.PNG', '.png']
         try {
 
-            const files = await readDirectory(options.directory);
+            const files = await system.readDirectory(options.directory);
             for (let file of files) {
                 for (let extension of acceptableExtensions) {
                     if (file.includes(extension)) {

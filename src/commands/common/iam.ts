@@ -1,4 +1,4 @@
-import { IAMClient, CreateRoleCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role, ListAttachedRolePoliciesCommand, DetachRolePolicyCommand } from "@aws-sdk/client-iam";
+import { IAMClient, CreateRoleCommand, DeletePolicyCommand, CreatePolicyCommand, AttachRolePolicyCommand, Policy, Role, ListAttachedRolePoliciesCommand, DetachRolePolicyCommand, ListAttachedRolePoliciesCommandOutput } from "@aws-sdk/client-iam";
 import { timer, logger } from "./";
 
 class IAM {
@@ -76,7 +76,26 @@ class IAM {
         } catch (error) {
             throw new Error(error.toString());
         }
+    }
 
+    /**
+     * Function to delete policy based on PolicyArn
+     * @param policyArn string
+     * @returns 
+     */
+    private async deletePolicy(policyArn: string) {
+        try {
+            const params = {
+                PolicyArn: policyArn,
+            }
+
+            logger.logMessage('Deleting policy with with pararms', { policyArn: policyArn }, 'INFO');
+
+            return (await this._client.send(new DeletePolicyCommand(params))).Policy
+
+        } catch (error) {
+            throw new Error(error.toString());
+        }
     }
 
     /**
@@ -105,35 +124,45 @@ class IAM {
 
     /**
      * Clean up function for roleArn with Policy Attached
-     * @param iamRoleArn 
+     * @param iamRole
      */
-    public async cleanUpRole(iamRoleArn:string) {
-        logger.logMessage('About to start cleaning IAM role for ARN', {roleArn:iamRoleArn});
-        const rolePolicies = await this.listAttachedRolePolicies(iamRoleArn);
-        console.log(rolePolicies);
+    public async cleanUpRole(role:Role) {
+        console.log('the role');
+        console.log(role);
+        logger.logMessage('About to start cleaning IAM role for ARN', {roleArn:role.Arn});
+       // const rolePolicies = await this.listAttachedRolePolicies(role.RoleName);
+
+        (await this.listAttachedRolePolicies(role.RoleName)).map(async (policies) => {
+        //    this.detachPolicyFromRole(role.RoleName, policies)
+        console.log('the policies');
+            await this.detachPolicyFromRole(role.RoleName, policies['PolicyArn'])
+            await this.deletePolicy(policies['PolicyArn']);
+        });        
      }
 
     /**
      * List attached Policies from Role
-     * @param roleNameArn
+     * @param roleName
      * @returns 
      */
-    private async listAttachedRolePolicies(roleNameArn) {
+    private async listAttachedRolePolicies(roleName) : Promise<ListAttachedRolePoliciesCommandOutput[]>{
         try {
             console.log('role name');
-            console.log(roleNameArn );
+            console.log(roleName );
 
             const params = {
-                "RoleName": roleNameArn,
+                "RoleName": roleName,
             }
 
+            console.log('the params');
+            console.log(params);
             logger.logMessage('Listing Attached Policies to Role', {
-                "RoleName": roleNameArn,
+                "RoleName": roleName,
             }, 'INFO');
 
 
             
-            return await this._client.send(new ListAttachedRolePoliciesCommand(params));
+            return (await this._client.send(new ListAttachedRolePoliciesCommand(params))).AttachedPolicies;
 
         } catch (error) {
             logger.logMessage(error.toString, error, 'ERROR');
@@ -141,7 +170,7 @@ class IAM {
         }
     }
 
-    async detachPolicyFromRole(roleName, policyArn) {
+    private async detachPolicyFromRole(roleName, policyArn) {
 
         try {
             const params = {

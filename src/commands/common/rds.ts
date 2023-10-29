@@ -99,9 +99,10 @@ class RDS {
      * @param snapshot 
      * @returns 
      */
-    private async describeDBSnapshots(params) {
+    private async describeDBSnapshots(params) : Promise<DBSnapshot[]> {
         try {
-            return await this._client.send(new DescribeDBSnapshotsCommand(params))
+            
+            return (await this._client.send(new DescribeDBSnapshotsCommand(params))).DBSnapshots
 
         } catch (error) {
             logger.logMessage('Unable to describe snapshot', error, 'ERROR');
@@ -142,17 +143,16 @@ class RDS {
                 "DBInstanceIdentifier": `${snapshot.DBInstanceIdentifier}`
             };
             const snapshotInstance = await this.describeDBSnapshots(params);
-
-
-            if (snapshotInstance.DBSnapshots && snapshotInstance.DBSnapshots[0].Status === "available") {
+   
+            if (snapshotInstance && snapshotInstance[0].Status === "available") {
                 complete = true;
                 logger.logMessage('Snapspot has been created', null, 'INFO')
 
                 await this.exportSnapShot(snapshot);
-            }
+            } 
 
             await timer.sleep(10000);
-        }
+        } 
     }
 
     /**
@@ -180,7 +180,7 @@ class RDS {
             await timer.sleep(10000);
         }
 
-        await iam.cleanUpRole(roleInstance.Arn);
+        await iam.cleanUpRole(roleInstance);
         await kms.cleanUpKey(key.KeyId);
     }
 
@@ -268,6 +268,8 @@ class RDS {
                 DBSnapshotIdentifier: dbSnmpshotIdentifier
             }
 
+            logger.logMessage('Delete snapshot with params', { DBSnapshotIdentifier: dbSnmpshotIdentifier }, 'INFO');
+
             return await this._client.send(new DeleteDBSnapshotCommand(params));
         } catch (error) {
             return error.toString();
@@ -282,7 +284,13 @@ class RDS {
      */
     public async deleteSnapshotByPrefix(options) {
         const prefix = options.prefix;
-        this.describeDBSnapshots({filter:prefix});
+        logger.logMessage('About to delete snapshots based on prefix', null, 'INFO', 'Delete Snapshots');
+       // const results = await this.describeDBSnapshots({filter:prefix});
+        //console.log(await this.describeDBSnapshots({filter:prefix}));
+
+        (await this.describeDBSnapshots({filter:prefix})).map(async(snapshots) => {
+            await this.deleteDBSnapShot(snapshots.DBSnapshotIdentifier)
+        });
     }
 
     /**

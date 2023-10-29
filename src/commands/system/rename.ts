@@ -1,4 +1,3 @@
-import {readdirSync} from "fs";
 import {Command} from 'commander';
 import * as uuid from 'uuid';
 import * as shell from 'shelljs';
