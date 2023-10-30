@@ -1,11 +1,14 @@
 {
   "name": "tomvisions-toolkit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A toolkit for dev-ops purpose for my own uses",
   "main": "index.js",
   "scripts": {
     "build": "tsc --project .",
-    "test": "npm run test"
+    "postbuild": "npm run copy-assets",
+    "copy-assets": "ts-node copyStaticAssets.ts",
+    "test": "npm run test",
+    "release": "npm version patch --no-git-tag-version && npm run build && cd dist && npm publish"
   },
   "repository": {
     "type": "git",
@@ -42,6 +45,7 @@
     "request": "^2.88.2",
     "sequelize": "^6.29.0",
     "shelljs": "^0.8.5",
+    "ts-node": "^10.9.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
