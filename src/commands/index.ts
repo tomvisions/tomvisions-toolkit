@@ -1,4 +1,5 @@
 export * from "./system"
 export * from "./rds"
 export * from "./s3"
+export * from "./iam"
 export * from "./mongodb"

@@ -5,7 +5,7 @@ import { Command } from 'commander';
 
 const pkg = require(`../package.json`);
 
-import { systemCommands, rdsCommands, s3Commands} from './commands';
+import { systemCommands, rdsCommands, s3Commands, iamCommands} from './commands';
 
 const program = new Command();
 
@@ -16,4 +16,6 @@ program
     .addCommand(systemCommands.GetCommand())
     .addCommand(rdsCommands.GetCommand())
     .addCommand(s3Commands.GetCommand())
+    .addCommand(iamCommands.GetCommand())
+
 program.parse(process.argv);
