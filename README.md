@@ -10,8 +10,9 @@ Current functionaity for RDS
 
 3) Deletes RDS snapshots based on prefix
 
-Current functionaity for RDS
+Current functionaity for IAM
 1) Deletes IAM roles based on prefix
+2) Delete IAM policies based on prefix
 
 Current functions for System Operations
 

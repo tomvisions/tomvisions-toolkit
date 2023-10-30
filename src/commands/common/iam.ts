@@ -1,4 +1,4 @@
-import { IAMClient, ListUsersCommand, DeleteRoleCommand, ListRolesCommand, CreateRoleCommand, DeletePolicyCommand, CreatePolicyCommand, AttachRolePolicyCommand, User, Policy, Role, ListAttachedRolePoliciesCommand, DetachRolePolicyCommand, ListAttachedUserPoliciesCommand, DeleteUserCommand, AttachedPolicy } from "@aws-sdk/client-iam";
+import { IAMClient, ListUsersCommand, DeleteRoleCommand, ListRolesCommand, CreateRoleCommand, DeletePolicyCommand, CreatePolicyCommand, AttachRolePolicyCommand, User, Policy, Role, ListAttachedRolePoliciesCommand, DetachRolePolicyCommand, ListAttachedUserPoliciesCommand, DeleteUserCommand, AttachedPolicy, ListPoliciesCommand } from "@aws-sdk/client-iam";
 import { timer, logger } from "./";
 
 class IAM {
@@ -51,6 +51,23 @@ class IAM {
             return data;
     }
 
+        /**
+     * 
+     * @param prefix Function which filters the the policy list by prefix given
+     * @param type 
+     */
+        private async filterPolicyListByPrefix(prefix, params) : Promise<Role[]> {
+            const policies = await this.listPolicies(params);
+            const data = policies.Policies.filter((policy) => {
+                 return policy.PolicyName.includes(prefix);
+            });
+
+            data['IsTruncated'] = policies.IsTruncated;
+            data['Marker'] = policies.Marker;
+
+            return data;
+    }
+
 
     /**
      * Deletes role by prefix
@@ -59,7 +76,6 @@ class IAM {
     public async deleteRoleByPrefix(prefix: string) {
 
         logger.logMessage('Starting deleting process', null, 'INFO', 'Deleting Role by Prefix');   
-      //  const roles = await this.listRoles(prefix);
         let searchPrefix = true;
         const params = {Token: null}
     
@@ -87,14 +103,35 @@ class IAM {
         (await this.listUsers(prefix)).map( async (user) => {
             (await this.listAttachedUserPolicies(user.UserName)).map(async (policy:Policy) => {
                 await this.detachPolicyFromRole(user.UserName, policy.Arn)
+                await timer.sleep(1000);
             });
 
             await this.deleteUser(user);
         });
     }
 
+    /**
+     * Function which delets policies based on prefix
+     * @param prefix 
+     */
     public async deletePolicyByPrefix(prefix: string) {
+        logger.logMessage('Starting deleting process', null, 'INFO', 'Deleting Policy by Prefix');   
+        let searchPrefix = true;
+        const params = {Token: null}
+    
+        while(searchPrefix) {
+            const filteredListPolicy = await this.filterPolicyListByPrefix(prefix, params);
+    
+            if (filteredListPolicy['IsTruncated']) {
+                params.Token = filteredListPolicy['Marker'];
+            } else {
+                searchPrefix = false;
+            }
 
+            filteredListPolicy.map(async (policy:Policy) => {
+                await this.deletePolicy(policy.Arn)
+            });
+        }   
     }
 
     /**
@@ -130,7 +167,6 @@ class IAM {
         } catch (error) {
             logger.logMessage('Create Role has error:',error, 'ERROR');
             return error.toString();
-//            throw new Error(`Create Role has error: ${error.toString()}`);
         }
     }
 
@@ -145,6 +181,21 @@ class IAM {
             return (await this._client.send(new ListRolesCommand(params)))
         } catch (error) {
             logger.logMessage(`Error listing Roles with params: ${error.toString}`,error, 'ERROR');
+            return error.toString();
+        }
+    }
+
+       /**
+     * List Roles 
+     * @param prefix 
+     * @returns 
+     */
+       private async listPolicies(params = null) {
+        try {
+            logger.logMessage('List Policies with params:',params, 'INFO');
+            return (await this._client.send(new ListPoliciesCommand(params)))
+        } catch (error) {
+            logger.logMessage(`Error listing Policies with params: ${error.toString}`,error, 'ERROR');
             return error.toString();
         }
     }
@@ -219,12 +270,13 @@ class IAM {
                 PolicyArn: policyArn,
             }
 
-            logger.logMessage('Deleting policy with with pararms', { policyArn: policyArn }, 'INFO');
+            logger.logMessage('Deleting policy with pararms', { policyArn: policyArn }, 'INFO');
 
             return await this._client.send(new DeletePolicyCommand(params));
 
         } catch (error) {
-            throw new Error(error.toString());
+            logger.logMessage('Error deleting policy:', error, 'ERROR');
+            return error.toString();
         }
     }
 
@@ -253,7 +305,7 @@ class IAM {
     }
 
     /**
-     * Clean up function for roleArn with Policy Attached
+     * Clean up function for role with Policy Attached
      * @param iamRole
      */
     public async cleanUpRole(role:Role) {
@@ -264,6 +316,7 @@ class IAM {
             await this.detachPolicyFromRole(role.RoleName, policies['PolicyArn'])
             await this.deletePolicy(policies['PolicyArn']);
         });        
+        await this.deleteRole(role);
      }
     
      /**
@@ -277,8 +330,6 @@ class IAM {
                 "RoleName": roleName,
             }
 
-            console.log('the params');
-            console.log(params);
             logger.logMessage('Listing Attached Policies to Role', {
                 "RoleName": roleName,
             }, 'INFO');
@@ -300,15 +351,10 @@ class IAM {
      */
      private async listAttachedUserPolicies(userName) : Promise<AttachedPolicy[]>{
         try {
-            console.log('user name');
-            console.log(userName );
-
             const params = {
                 "UserName": userName,
             }
 
-            console.log('the params');
-            console.log(params);
             logger.logMessage('Listing Attached Policies to User', {
                 "UserName": userName,
             }, 'INFO');

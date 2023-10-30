@@ -18,11 +18,13 @@ export class DeleteIAM {
 
         switch (options.type) {
             case "role":
-                iam.deleteRoleByPrefix(options.prefix);    
+                iam.deleteRoleByPrefix(options.prefix);
+                break;
+            case "policy":
+                iam.deletePolicyByPrefix(options.prefix);
                 break;
 
-
-                default:
+            default:
                 break;
 
         }
