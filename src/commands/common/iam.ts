@@ -35,6 +35,24 @@ class IAM {
     }
 
     /**
+     * 
+     * @param prefix Function which filters the the role list by prefix given
+     * @param type 
+     */
+    private async filterRoleListByPrefix(prefix, params) : Promise<Role[]> {
+            const roles = await this.listRoles(params);
+            const data = roles.Roles.filter((role) => {
+                 return role.RoleName.includes(prefix);
+            });
+
+            data['IsTruncated'] = roles.IsTruncated;
+            data['Marker'] = roles.Marker;
+
+            return data;
+    }
+
+
+    /**
      * Deletes role by prefix
      * @param prefix 
      */
@@ -42,14 +60,25 @@ class IAM {
 
         logger.logMessage('Starting deleting process', null, 'INFO', 'Deleting Role by Prefix');   
       //  const roles = await this.listRoles(prefix);
-        (await this.listRoles(prefix)).map( async (role) => {
+        let searchPrefix = true;
+        const params = {Token: null}
+    
+        while(searchPrefix) {
+            const filteredListRole = await this.filterRoleListByPrefix(prefix, params);
 
-            (await this.listAttachedRolePolicies(role.RoleName)).map(async (policy:Policy) => {
-                await this.detachPolicyFromRole(role.RoleName, policy.Arn)
+            if (filteredListRole['IsTruncated']) {
+                params.Token = filteredListRole['Marker'];
+            } else {
+                searchPrefix = false;
+            }
+
+            filteredListRole.map(async (role) => {
+                (await this.listAttachedRolePolicies(role.RoleName)).map(async (policy:AttachedPolicy) => {
+                    await this.detachPolicyFromRole(role.RoleName, policy.PolicyArn);
+                }); 
+                await this.deleteRole(role);        
             });
-
-            await this.deleteRole(role);
-        });
+        }     
     }
 
     public async deleteUserByPrefix(prefix: string) {
@@ -83,7 +112,8 @@ class IAM {
             return await this._client.send(new DeleteRoleCommand(params));
 
         } catch (error) {
-            throw new Error(`Create Role has error: ${error.toString()}`);
+            logger.logMessage('Error deleting Role wth error:',error,'ERROR');
+            return error.toString();
         }
 
     }
@@ -98,7 +128,9 @@ class IAM {
             return await this._client.send(new DeleteUserCommand(params));
 
         } catch (error) {
-            throw new Error(`Create Role has error: ${error.toString()}`);
+            logger.logMessage('Create Role has error:',error, 'ERROR');
+            return error.toString();
+//            throw new Error(`Create Role has error: ${error.toString()}`);
         }
     }
 
@@ -107,17 +139,13 @@ class IAM {
      * @param prefix 
      * @returns 
      */
-    private async listRoles(prefix: string): Promise<Role[]> {
+    private async listRoles(params = null) {
         try {
-            const params = {
-                PathPrefix : prefix,
-            };
-
             logger.logMessage('List Roles with params:',params, 'INFO');
-            return (await this._client.send(new ListRolesCommand(params))).Roles
-
+            return (await this._client.send(new ListRolesCommand(params)))
         } catch (error) {
-            throw new Error(`Create Role has error: ${error.toString()}`);
+            logger.logMessage(`Error listing Roles with params: ${error.toString}`,error, 'ERROR');
+            return error.toString();
         }
     }
 
@@ -131,7 +159,7 @@ class IAM {
             return (await this._client.send(new ListUsersCommand(params))).Users
 
         } catch (error) {
-            throw new Error(`Create Role has error: ${error.toString()}`);
+            throw new Error(`List Users has error: ${error.toString()}`);
         }
         
     }
@@ -229,14 +257,10 @@ class IAM {
      * @param iamRole
      */
     public async cleanUpRole(role:Role) {
-        console.log('the role');
-        console.log(role);
         logger.logMessage('About to start cleaning IAM user for ARN', {roleArn:role.Arn});
        // const rolePolicies = await this.listAttachedRolePolicies(role.RoleName);
 
         (await this.listAttachedRolePolicies(role.RoleName)).map(async (policies) => {
-        //    this.detachPolicyFromRole(role.RoleName, policies)
-        console.log('the policies');
             await this.detachPolicyFromRole(role.RoleName, policies['PolicyArn'])
             await this.deletePolicy(policies['PolicyArn']);
         });        
@@ -247,11 +271,8 @@ class IAM {
      * @param roleName
      * @returns 
      */
-    private async listAttachedRolePolicies(roleName) : Promise<any>{
-        try {
-            console.log('role name');
-            console.log(roleName );
-
+    private async listAttachedRolePolicies(roleName) : Promise<AttachedPolicy[]>{
+        try { 
             const params = {
                 "RoleName": roleName,
             }
@@ -262,6 +283,7 @@ class IAM {
                 "RoleName": roleName,
             }, 'INFO');
             
+          //  console.log(await this._client.send(new ListAttachedRolePoliciesCommand(params)));
             return (await this._client.send(new ListAttachedRolePoliciesCommand(params))).AttachedPolicies;
 
         } catch (error) {
@@ -318,7 +340,7 @@ class IAM {
 
         } catch (error) {
             logger.logMessage(error.toString, error, 'ERROR');
-            throw new Error(error.toString());
+            return  error.toString();
         }
     }
 }

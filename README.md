@@ -6,10 +6,12 @@ Current functionaity for RDS
 
 1) Reads the keys in a S3 bucket that is specified, parses the keys, and inserts the data in a database
 
-2) Exports a database in AWS RDS and creates a snapshot. 
+2) Exports a database in AWS RDS and creates a snapshot, and then exports it into S3. Temporarily creates IAM role, policies and kms keys for the operaiton 
 
-In progress: creating a temporary IAM role, and policy to give permission to the node app to copy over the snapshot into S3
+3) Deletes RDS snapshots based on prefix
 
+Current functionaity for RDS
+1) Deletes IAM roles based on prefix
 
 Current functions for System Operations
 
