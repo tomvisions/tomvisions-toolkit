@@ -1,5 +1,6 @@
 import {Command} from 'commander';
 import {s3, rds} from "../common";
+//import { timer } from '../common';
 interface Options {
     bucket: string,
     prefix: string,
@@ -22,13 +23,13 @@ export class ImportRDS {
             for (let keyObject of listObjects.Contents) {
                 const name: string = keyObject.Key.split('/')[keyObject.Key.split('/').length-2];
                 
-                if (!keyObject.Key.includes('JPG')) {
+                if (!keyObject.Key.includes('JPG') && !keyObject.Key.includes('jpg')) {
                     continue;     
                  }    
 
                 rds.galleryName = name;
-                rds.findOrCreateGalleryName();            
-                rds.insertImageForGallery(keyObject.Key)
+                await rds.findOrCreateGalleryName();         
+                await rds.insertImageForGallery(keyObject.Key)
             }
 
         } catch (error) {

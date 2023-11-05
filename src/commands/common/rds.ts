@@ -99,9 +99,9 @@ class RDS {
      * @param snapshot 
      * @returns 
      */
-    private async describeDBSnapshots(params) : Promise<DBSnapshot[]> {
+    private async describeDBSnapshots(params): Promise<DBSnapshot[]> {
         try {
-            
+
             return (await this._client.send(new DescribeDBSnapshotsCommand(params))).DBSnapshots
 
         } catch (error) {
@@ -143,16 +143,16 @@ class RDS {
                 "DBInstanceIdentifier": `${snapshot.DBInstanceIdentifier}`
             };
             const snapshotInstance = await this.describeDBSnapshots(params);
-   
+
             if (snapshotInstance && snapshotInstance[0].Status === "available") {
                 complete = true;
                 logger.logMessage('Snapspot has been created', null, 'INFO')
 
                 await this.exportSnapShot(snapshot);
-            } 
+            }
 
             await timer.sleep(10000);
-        } 
+        }
     }
 
     /**
@@ -285,10 +285,10 @@ class RDS {
     public async deleteSnapshotByPrefix(options) {
         const prefix = options.prefix;
         logger.logMessage('About to delete snapshots based on prefix', null, 'INFO', 'Delete Snapshots');
-       // const results = await this.describeDBSnapshots({filter:prefix});
+        // const results = await this.describeDBSnapshots({filter:prefix});
         //console.log(await this.describeDBSnapshots({filter:prefix}));
 
-        (await this.describeDBSnapshots({filter:prefix})).map(async(snapshots) => {
+        (await this.describeDBSnapshots({ filter: prefix })).map(async (snapshots) => {
             await this.deleteDBSnapShot(snapshots.DBSnapshotIdentifier)
         });
     }
@@ -311,7 +311,7 @@ class RDS {
         await this.deleteDBSnapShot(snapshotObject['DBSnapshotIdentifier']);
 
 
-    } 
+    }
 
     /**
      * Function that reads the config file for the mysql database
@@ -341,15 +341,19 @@ class RDS {
      * @returns void
      */
     public async findOrCreateGalleryName() {
+        try {
+            const gallery = {
+                id: uuid.v4(),
+                name: this._galleryName,
+                createdAt: moment().format('YYYY-MM-DD'),
+                updatedAt: moment().format('YYYY-MM-DD'),
+            };
 
-        const gallery = {
-            id: uuid.v4(),
-            name: this._galleryName,
-            createdAt: moment().format('YYYY-MM-DD'),
-            updatedAt: moment().format('YYYY-MM-DD'),
-        };
+            return await GalleryPhotoGallery.findOrCreate({ where: { name: this._galleryName }, defaults: gallery });
+        } catch (error) {
 
-        GalleryPhotoGallery.findOrCreate({ where: { name: this._galleryName }, defaults: gallery });
+            return error.toString();
+        }
     }
 
     /**
@@ -368,7 +372,7 @@ class RDS {
                 updatedAt: moment().format('YYYY-MM-DD'),
             };
 
-            return await ImagePhotoGallery.create({ where: { key: key }, defaults: image });
+            return await ImagePhotoGallery.findOrCreate({ where: { key: key }, defaults: image });
         } catch (error) {
 
             return error.toString();

@@ -4,7 +4,8 @@ import * as shell from 'shelljs';
 import {system} from "../common";
 
 interface Options {
-    directory: string,
+    source: string,
+    destination:string,
     type: string
 }
 
@@ -14,20 +15,12 @@ export class Rename {
         const acceptableExtensions = ['.jpeg', '.jpg', '.PNG', '.png']
 
         try {
-            const files = await system.readDirectory(options.directory);
-            switch (options.type) {
-                case "uuid":
-
-                    break;
-
-                default:
-                    break;
-            }
-
+            const files = await system.readDirectory(options.source);
+         
             for (let file of files) {
                 for (let extension of acceptableExtensions) {
                     if (file.includes(extension)) {
-                        shell.cp(`${options.directory}/${file.replaceAll(/ /g, '\\ ')}`, `${options.directory}/${uuid.v4()}${extension}`);
+                        shell.cp(`${options.source}/${file.replaceAll(/ /g, '\\ ')}`, `${options.destination}/${uuid.v4()}${extension}`);
                     }
                 }
             }
@@ -45,7 +38,8 @@ export class Rename {
             .name('rename')
             .description('Renames images files to UUID format while keeping the file extension.')
             .option('-t, --type <value>', 'The type of renaming (uuid)')
-            .option('-d, --directory <value>', 'The folder focused on renaming')
+            .option('-s, --source <value>', 'The folder source')
+            .option('-d, --destination <value>', 'The folder destination for renaming')
             .action(this.Run);
         return program;
     }
