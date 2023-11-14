@@ -1,4 +1,4 @@
-import { S3Client, ListObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsCommand, PutObjectCommand, ListBucketsCommand, ListBucketsCommandOutput } from "@aws-sdk/client-s3";
 import fs from "fs";
 
 
@@ -19,7 +19,7 @@ export interface ListObjectsParams {
 class S3 {
     private _client;
     private _UPLOAD_BUCKET: string = 'tomvisions-original-images';
-   // private _TARGET_FOLDER: string = 'photo-camera-gallery';
+    // private _TARGET_FOLDER: string = 'photo-camera-gallery';
 
     constructor() {
         const options = {
@@ -44,30 +44,65 @@ class S3 {
 
     }
 
+    /**
+     * Delete buckets based on prefix
+     * @param prefix 
+     */
+    public async deleteBucketBasedOnPrefix(prefix) {
+        const bucketList = await this.listBuckets()
+        bucketList.map(async (bucket) => {
+            if (bucket.Name.includes(prefix)) {
+                await this.retrieveObjectsNamesFromBucket(bucket.Name, '*');
+            }
+        })
+    }
+
+
 
     /**
-     * Function to retrieve list of objects with specific prefix from specific bucket
-     * @param bucket
-     * @param prefix
+     * Listing the buckets 
+     * @returns 
      */
-    async retrieveObjectsNamesFromBucket(bucket: string, prefix: string) {
-
+    private async listBuckets() : Promise<ListBucketsCommandOutput["Buckets"]> {
         try {
-            const params: ListObjectsParams = {
-                Bucket: bucket,
-                Prefix: prefix,
-                Marker: null
-            }
-            return this.listObjectsV2(params);
+            const params = {}
+            return (await this._client.send(new ListBucketsCommand(params))).Buckets;
         } catch (error) {
             return error.toString();
         }
 
     }
 
+    /**
+     * Function to retrieve list of objects with specific prefix from specific bucket
+     * @param bucket
+     * @param prefix
+     */
+    public async retrieveObjectsNamesFromBucket(bucket: string, prefix: string) {
+
+    try {
+        const params: ListObjectsParams = {
+            Bucket: bucket,
+            Prefix: prefix,
+            Marker: null
+        }
+        console.log(params);
+        let retievingFiles = true;
+        while(retievingFiles) {
+            const results = await this.listObjectsV2(params);
+            console.log(results);
+            process.exit(0)
+        }
+
+    } catch (error) {
+        return error.toString();
+    }
+
+}
+
     async listObjectsCommand() {
 
-    }
+}
 
 
     /**
@@ -77,22 +112,22 @@ class S3 {
      * @returns {Promise<unknown>}
      */
     async uploadObjectsToBucket(bucket: string, key: string) {
-        try {
-            const fileStream = fs.createReadStream(`/tmp/${key}`);
-            let params: putObjectParams = {
-                Bucket: this._UPLOAD_BUCKET,
-                Key: key,
-                ContentType: 'image/jpeg',
-                Body: fileStream
-            };
+    try {
+        const fileStream = fs.createReadStream(`/tmp/${key}`);
+        let params: putObjectParams = {
+            Bucket: this._UPLOAD_BUCKET,
+            Key: key,
+            ContentType: 'image/jpeg',
+            Body: fileStream
+        };
 
-            const putObjectsCommand = new PutObjectCommand(params);
-            this._client.send(putObjectsCommand);
-        } catch (error) {
-            return error.toString();
-        }
-
+        const putObjectsCommand = new PutObjectCommand(params);
+        this._client.send(putObjectsCommand);
+    } catch (error) {
+        return error.toString();
     }
+
+}
 
     /**
  * Function to retrieve list of objects with specific prefix from specific bucket
@@ -100,15 +135,15 @@ class S3 {
  * @param key
  * @returns {Promise<any>}
  */
-    async PutObjectCommand(params: putObjectParams): Promise<any> {
-        try {
-            const putObjectsCommand = new PutObjectCommand(params);
-            await this._client.send(putObjectsCommand);
-        } catch (error) {
-            return error.toString();
-        }
-
+    async PutObjectCommand(params: putObjectParams): Promise < any > {
+    try {
+        const putObjectsCommand = new PutObjectCommand(params);
+        await this._client.send(putObjectsCommand);
+    } catch(error) {
+        return error.toString();
     }
+
+}
 
 
 }

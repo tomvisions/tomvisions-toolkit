@@ -332,10 +332,6 @@ class RDS {
         }
     }
 
-
-
-
-
     /**
      * Find or Create gallewy name function. This function looks for gallery name given. If not found, it creates it.
      * @returns void

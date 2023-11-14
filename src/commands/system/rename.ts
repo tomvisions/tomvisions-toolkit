@@ -12,7 +12,7 @@ interface Options {
 export class Rename {
     private async Run(options: Options) {
 
-        const acceptableExtensions = ['.jpeg', '.jpg', '.PNG', '.png']
+        const acceptableExtensions = ['.jpeg', '.jpg', '.PNG', '.png', '.JPG']
 
         try {
             const files = await system.readDirectory(options.source);
@@ -24,8 +24,6 @@ export class Rename {
                     }
                 }
             }
-            process.exit(0);
-
         } catch (error) {
             console.log('the error');
             console.log(error);
