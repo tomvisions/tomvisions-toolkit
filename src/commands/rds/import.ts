@@ -1,12 +1,13 @@
-import {Command} from 'commander';
-import {s3, rds} from "../common";
+import { Command } from 'commander';
+import { s3, rds } from "../common";
+import { ListObjectsParams } from '../common';
 //import { timer } from '../common';
 interface Options {
     bucket: string,
     prefix: string,
-    database:string,
-    table:string,
-    field:string
+    database: string,
+    table: string,
+    field: string
     project: string,
     config: string
 }
@@ -15,21 +16,32 @@ interface Options {
 export class ImportRDS {
     private async Run(options: Options) {
         try {
-            await rds.initalizeRDS(options.config); 
+            await rds.initalizeRDS(options.config);
 
-            const listObjects = await s3.retrieveObjectsNamesFromBucket(options.bucket, options.prefix);
- 
 
-            for (let keyObject of listObjects.Contents) {
-                const name: string = keyObject.Key.split('/')[keyObject.Key.split('/').length-2];
-                
-                if (!keyObject.Key.includes('JPG') && !keyObject.Key.includes('jpg')) {
-                    continue;     
-                 }    
+            const params: ListObjectsParams = {
+                Bucket: options.bucket,
+                Prefix: options.prefix,
+                Marker: null
+            }
+            let retievingFiles = true;
+            while (retievingFiles) {
+                const listObjects = await s3.retrieveObjectsNamesFromBucketForRDS(params);
 
-                rds.galleryName = name;
-                await rds.findOrCreateGalleryName();         
-                await rds.insertImageForGallery(keyObject.Key)
+                for (let keyObject of listObjects.Contents) {
+                    if (!keyObject.Key.includes('JPG') && !keyObject.Key.includes('jpg')) {
+                        continue;
+                    }
+                    const id: string = keyObject.Key.split('/')[keyObject.Key.split('/').length - 2];
+        
+                    rds.galleryId = id;
+                    await rds.insertImageForGallery(keyObject.Key);
+                    await rds.findOrCreateGalleryName();
+                }
+                if (!listObjects.IsTruncated) {
+                    retievingFiles = false;
+                }
+
             }
 
         } catch (error) {

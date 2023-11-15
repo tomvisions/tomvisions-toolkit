@@ -15,7 +15,7 @@ export class ImagePhotoGallery extends Model {
             name: {
                 type: DataTypes.STRING,
             },
-            gallery: {
+            gallery_id: {
                 type: DataTypes.STRING,
             },
             createdAt: {

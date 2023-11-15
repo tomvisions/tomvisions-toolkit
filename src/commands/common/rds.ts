@@ -8,6 +8,7 @@ import { timer } from "./timer";
 //import { KeyMetadata } from "@aws-sdk/client-kms";
 import { Role } from "@aws-sdk/client-iam";
 import { KeyMetadata } from "@aws-sdk/client-kms";
+import { Base } from "./base";
 
 
 export interface GalleryProperties {
@@ -38,13 +39,14 @@ export interface OptionExportRDS {
     instance: string,
 }
 
-class RDS {
+class RDS extends Base {
     private _client: RDSClient;
-    private _galleryName;
+    private _galleryId;
     private _sequelize;
     private _bucket;
 
     constructor() {
+        super()
         const options = {
             version: "latest",
             region: "us-east-1"
@@ -339,13 +341,13 @@ class RDS {
     public async findOrCreateGalleryName() {
         try {
             const gallery = {
-                id: uuid.v4(),
-                name: this._galleryName,
+                id: this._galleryId,
+                name: await this.formatFirstCharacterOfEveryWorld(this._galleryId),
                 createdAt: moment().format('YYYY-MM-DD'),
                 updatedAt: moment().format('YYYY-MM-DD'),
             };
 
-            return await GalleryPhotoGallery.findOrCreate({ where: { name: this._galleryName }, defaults: gallery });
+            return await GalleryPhotoGallery.findOrCreate({ where: { id: this._galleryId }, defaults: gallery });
         } catch (error) {
 
             return error.toString();
@@ -359,15 +361,16 @@ class RDS {
      */
     public async insertImageForGallery(key) {
         try {
+            
             const image = {
                 id: uuid.v4(),
                 name: key.split('/')[2],
                 key: key,
-                gallery: this._galleryName,
+                gallery_id: this._galleryId,
                 createdAt: moment().format('YYYY-MM-DD'),
                 updatedAt: moment().format('YYYY-MM-DD'),
             };
-
+            
             return await ImagePhotoGallery.findOrCreate({ where: { key: key }, defaults: image });
         } catch (error) {
 
@@ -375,11 +378,9 @@ class RDS {
         }
     }
 
-    public set galleryName(value) {
-        this._galleryName = value;
+    public set galleryId(value) {
+        this._galleryId = value;
     }
-
-
 }
 
 export const rds = new RDS();
