@@ -35,7 +35,7 @@ export class ImportRDS {
                     const id: string = keyObject.Key.split('/')[keyObject.Key.split('/').length - 2];
         
                     rds.galleryId = id;
-                    await rds.insertImageForGallery(keyObject.Key);
+                    await rds.insertImageForGallery(keyObject.Key, params.Bucket);
                     await rds.findOrCreateGalleryName();
                 }
                 if (!listObjects.IsTruncated) {

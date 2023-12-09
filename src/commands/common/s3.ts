@@ -1,6 +1,6 @@
-import { S3Client, ListObjectsCommand, PutObjectCommand, ListBucketsCommand, ListBucketsCommandOutput, ListObjectsV2CommandOutput, DeleteObjectCommand, ListObjectsV2Output } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectAttributesCommand, GetObjectCommand, ListObjectsCommand, PutObjectCommand, ListBucketsCommand, ListBucketsCommandOutput, ListObjectsV2CommandOutput, DeleteObjectCommand, ListObjectsV2Output, ObjectAttributes, GetObjectCommandOutput } from "@aws-sdk/client-s3";
 import fs from "fs";
-
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export interface putObjectParams {
     Bucket: string,
@@ -64,13 +64,74 @@ class S3 {
     private async listBuckets(): Promise<ListBucketsCommandOutput["Buckets"]> {
         try {
             const params = {}
-            return (await this._client.send(new ListBucketsCommand(params))).Buckets;
+
+            return (await this._client.send(new ListBucketsCommand({ params }))).Buckets;
         } catch (error) {
             return error.toString();
         }
 
     }
 
+    /**
+       * Get object meta data
+       * @param bucket 
+       * @param key 
+       * @returns 
+       */
+    public async getObjectAttributes(bucket, key) {
+
+        try {
+            const params = {
+                Bucket: bucket,
+                Key: key,
+                ObjectAttributes: [ObjectAttributes.CHECKSUM, ObjectAttributes.ETAG, ObjectAttributes.OBJECT_SIZE, ObjectAttributes.STORAGE_CLASS]
+            }
+
+            return await this._client.send(new GetObjectAttributesCommand(params))
+        } catch (error) {
+            return error.toString();
+        }
+    }
+    
+    /**
+     * 
+     * @param bucket Signed url
+     * @param key 
+     * @returns 
+     */
+    public async gettingSignedUrl(bucket, key) {
+        try {
+            const params = {
+                Bucket: bucket,
+                Key: key
+            }
+            const command = new GetObjectCommand(params)
+
+            return await getSignedUrl(this._client, command,{ expiresIn: 3600 })
+        } catch (error) {
+            return error.toString();
+        }
+    } 
+
+    /**
+     * Get object
+     * @param bucket 
+     * @param key 
+     * @returns 
+     */
+    public async getObject(bucket, key): Promise<GetObjectCommandOutput> {
+
+        try {
+            const params = {
+                Bucket: bucket,
+                Key: key,
+            }
+
+            return await this._client.send(new GetObjectCommand(params));
+        } catch (error) {
+            return error.toString();
+        }
+    }
     /**
      * Function to retrieve list of objects with specific prefix from specific bucket
      * @param bucket
@@ -121,8 +182,6 @@ class S3 {
         } catch (error) {
             return error.toString();
         }
-
-        DeleteObjectCommand
     }
 
     /**
@@ -130,7 +189,7 @@ class S3 {
      * @param bucket
      * @param prefix string |null
      */
-    public async retrieveObjectsNamesFromBucketForRDS(params) : Promise<ListObjectsV2Output> {
+    public async retrieveObjectsNamesFromBucketForRDS(params): Promise<ListObjectsV2Output> {
         try {
             return await this.listObjectsV2(params);
 

@@ -1,5 +1,5 @@
 import { Role } from "@aws-sdk/client-iam";
-import { KMSClient, CreateKeyCommand, ScheduleKeyDeletionCommand, KeyMetadata } from "@aws-sdk/client-kms";
+import { KMSClient, CreateKeyCommand, ScheduleKeyDeletionCommand, KeyMetadata, ListKeysCommand, DescribeKeyCommand } from "@aws-sdk/client-kms";
 import { logger } from "./";
 const datetime = require('node-datetime');
 
@@ -49,21 +49,53 @@ class KMS {
         } catch (error) {
             return error.toString();
         }
-
     }
 
-    async scheduleKeyDeletion(keyId) {
+    public async getListKeys() {
+        console.log('inside list')
+       return await this.listKeysCommand();
+    }
+
+    public async getKeyInfo(keyId) {
+       return this.describeKeyCommand(keyId);
+    }
+
+    private async describeKeyCommand(keyId) {
+
+        try {
+            return (await this._client.send(new DescribeKeyCommand({KeyId:keyId })));
+        } catch (error) {
+            logger.logMessage(error.toString(), error, 'ERROR');
+            return error.toString();
+        }
+    }
+
+    private async listKeysCommand() {
         try {
 
-            logger.logMessage('The following key has been scheduled for deletion', { KeyId: keyId }, 'INFO');
-            return (await this._client.send(new ScheduleKeyDeletionCommand({ KeyId: keyId })));
+           ///logger.logMessage('Getting the list of keys',null, 'INFO');
+            console.log('gi')
+            return (await this._client.send(new ListKeysCommand({})));
+        } catch (error) {
+            logger.logMessage(error.toString(), error, 'ERROR');
+            return error.toString();
+        }
+    }
+    async scheduleKeyDeletion(keyId) {
+        try {
+                console.log('about to delete')
+    //        logger.logMessage('The following key has been scheduled for deletion', { KeyId: keyId }, 'INFO');
+            const test =  await this._client.send(new ScheduleKeyDeletionCommand({ KeyId: keyId, PendingWindowInDays: 7 }));
+                console.log('testing');
+                console.log(test);
+                return test;
         } catch (error) {
             logger.logMessage(error.toString(), error, 'ERROR');
             return error.toString();
         }
     }
     async cleanUpKey(keyId) {
-        logger.logMessage('About to schedule KMS key deletion', {KeyId: keyId}, 'Key Delection');
+   //     logger.logMessage('About to schedule KMS key deletion', {KeyId: keyId}, 'Key Delection');
         await this.scheduleKeyDeletion(keyId);
     }
 

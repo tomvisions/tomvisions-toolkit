@@ -3,7 +3,7 @@
 const { DataTypes, Model } = require('.');
 
 export class ImagePhotoGallery extends Model {
-    public static initalize(sequelize) {
+    public static initialize(sequelize) {
         return this.init({
             id: {
                 type: DataTypes.STRING,
@@ -15,7 +15,7 @@ export class ImagePhotoGallery extends Model {
             name: {
                 type: DataTypes.STRING,
             },
-            gallery_id: {
+            GalleryId: {
                 type: DataTypes.STRING,
             },
             createdAt: {
@@ -23,7 +23,10 @@ export class ImagePhotoGallery extends Model {
             },
             updatedAt: {
                 type: DataTypes.DATE,
-            }
+            },
+            orientation: {
+                type: DataTypes.SMALLINT,
+            },
         }, {
             modelName: 'Image', sequelize, tableName: "image"
         });

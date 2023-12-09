@@ -9,6 +9,7 @@ import { timer } from "./timer";
 import { Role } from "@aws-sdk/client-iam";
 import { KeyMetadata } from "@aws-sdk/client-kms";
 import { Base } from "./base";
+//import probe from 'probe-image-size';
 
 
 export interface GalleryProperties {
@@ -71,8 +72,8 @@ class RDS extends Base {
         const dbConfig = await this.readCredentialsFromFile(file)
         this.initalizeSequelize(dbConfig);
 
-        GalleryPhotoGallery.initalize(this._sequelize)
-        ImagePhotoGallery.initalize(this._sequelize)
+        GalleryPhotoGallery.initialize(this._sequelize)
+        ImagePhotoGallery.initialize(this._sequelize)
 
     }
 
@@ -359,21 +360,27 @@ class RDS extends Base {
      * @param key
      * @returns void | error
      */
-    public async insertImageForGallery(key) {
+    public async insertImageForGallery(key, bucket) {
         try {
-            
+
+            const imageInfo = await system.getImageInfo(bucket, key)
+            console.log(imageInfo)
+        //    await this.sizeOf(`s3://tomvisions-original-images/${key}`);
             const image = {
                 id: uuid.v4(),
                 name: key.split('/')[2],
                 key: key,
-                gallery_id: this._galleryId,
+                GalleryId: this._galleryId,
                 createdAt: moment().format('YYYY-MM-DD'),
                 updatedAt: moment().format('YYYY-MM-DD'),
+                orientation: imageInfo.orientation,
+                signedUrl: imageInfo.url
             };
-            
+            console.log(image);
+
             return await ImagePhotoGallery.findOrCreate({ where: { key: key }, defaults: image });
         } catch (error) {
-
+            console.log(error);
             return error.toString();
         }
     }

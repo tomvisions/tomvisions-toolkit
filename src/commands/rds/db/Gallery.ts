@@ -4,7 +4,7 @@ const {DataTypes, Model} = require('.');
 
 export class GalleryPhotoGallery extends Model {
 
-    public static initalize(sequelize) {
+    public static initialize(sequelize) {
         return this.init({
             id: {
                 type: DataTypes.STRING,

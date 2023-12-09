@@ -1,5 +1,7 @@
 const fs = require('fs/promises');
-import {readdirSync} from "fs";
+import {readdirSync, writeFileSync} from "fs";
+import {s3} from '.'
+import probe from 'probe-image-size';
 
 class System {
 
@@ -34,6 +36,25 @@ class System {
             return error.toString();
         }
     }
+
+    public async writeFile(file, data) {
+        try {
+            console.log(file);
+            return await writeFileSync(file, data);
+        } catch (error) {
+            return error.toString();
+        }
+
+
+    }
+
+    public async getImageInfo(bucket, key) {
+
+        const url = await s3.gettingSignedUrl(bucket, key);
+
+        return await probe(url);
+    }
+
 }
 
 export const system = new System();
