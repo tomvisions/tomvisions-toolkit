@@ -9,7 +9,7 @@ interface Options {
     type: string
 }
 
-interface ISomething {
+/*interface ISomething {
     FirstName: any;
     LastName: number;
     DOB: number;
@@ -18,14 +18,14 @@ interface ISomething {
     Father: string;
     Contact: string
     'Platform Registered': string;
-}
+} */
 export class Convert {
     private async Run(options: Options) {
         try {
             const file = (await system.readFilefromPath(options.source)).split("\n");
             const headersArray = file.shift().split(",");
        //     const rowData = file.split(",");
-            const jsonData: ISomething = [];
+            const jsonData = [];
 
             file.map((entry, index) => {
                 const rowData = entry.split(",");

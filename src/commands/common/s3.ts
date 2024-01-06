@@ -31,6 +31,15 @@ class S3 {
     }
 
     /**
+     * Function that lists all the objects
+     * @param params
+     * @returns
+     */
+    public async listObjects(params: ListObjectsParams): Promise<ListObjectsV2CommandOutput> {
+       return this.listObjectsV2(params);
+    }
+
+    /**
      * Function that lists all the objects 
      * @param params 
      * @returns 
