@@ -1,5 +1,5 @@
-const fs = require('fs/promises');
-import {readdirSync, writeFileSync} from "fs";
+//const fs = require('fs/promises');
+import {readdirSync, writeFileSync, readFileSync} from "fs";
 import {s3} from '.'
 import probe from 'probe-image-size';
 
@@ -12,14 +12,11 @@ class System {
      */
     public async readFilefromPath(file) {
         try {
-            return await fs.readFile(file).then((data) => {
+            return await readFileSync(file,  { encoding: 'utf-8' });
+           // )//.then((data) => {
  
-                return data.toString();
-            })
-                .catch((error) => {
-                    return error.toString()
-                });
-
+             //   return data.toString();
+           // })
         } catch (error) {
             return error.toString()
         }

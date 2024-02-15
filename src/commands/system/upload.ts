@@ -1,8 +1,10 @@
 import {Command} from 'commander';
-const axios = require('axios');
-import imageToUri from 'image-to-uri';
+//const axios = require('axios');
+//import imageToUri from 'image-to-uri';
 import {system} from "../common";
-import { SocketAddress } from 'net';
+import { parse } from 'path';
+//import { SocketAddress } from 'net';
+//import { parse } from 'csv-parse';
 
 interface Options {
     directory: string,
@@ -15,14 +17,29 @@ export class Upload {
 
        // const acceptableExtensions = ['.jpeg', '.jpg', '.JPG', '.PNG', '.png']
         try {
+            if (!options.file) {
+                throw new Error("Missing file option")
+            }    
             const file = await system.readFilefromPath(options.file)
+            console.log('the file');
+            console.log(file);
 
-            for(let row of file.split("\n")){
-                const rowItems = row.split(",");    
+            const boo = parse(file);
+               console.log('boo');
+               console.log(boo);
+         /*   for(let row in file.split("\n")){
+                console.log('the row')
+                console.log(row);
+                const rowItems = row.split(',');    
                 console.log(rowItems);
-
+           //     await axios.postForm('http://127.0.0.1:3500/user', {
+             //       name: rowItems[0],
+               //     email: rowItems[0]
+               //     phone: SocketAddress,
+                 //   description: 
+               // })
 //                parsedData.push(rowItems[0].toString() + rowItems[1].toString());
-              }
+              } */
 
            /* const files = await system.readDirectory(options.directory);
             for (let file of files) {
