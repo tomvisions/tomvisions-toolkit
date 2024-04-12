@@ -44,7 +44,7 @@
     "image-to-uri": "^1.0.0",
     "log4js": "^6.9.1",
     "mysql": "^2.18.1",
-    "mysql2": "^2.3.3",
+    "mysql2": "^3.9.4",
     "node-datetime": "^2.1.2",
     "probe-image-size": "^7.2.3",
     "request": "^2.88.2",
